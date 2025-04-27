@@ -23,6 +23,10 @@ def display_chat_page(pipe):
         st.session_state.response_time = 0.0
     if "feedback_given" not in st.session_state:
         st.session_state.feedback_given = False
+    if "show_retry_form" not in st.session_state:
+        st.session_state.show_retry_form = False
+    if "retry_request" not in st.session_state:
+        st.session_state.retry_request = ""
 
     # 質問が送信された場合
     if submit_button and user_question:
@@ -47,14 +51,40 @@ def display_chat_page(pipe):
         if not st.session_state.feedback_given:
             display_feedback_form()
         else:
-             # フィードバック送信済みの場合、次の質問を促すか、リセットする
-             if st.button("次の質問へ"):
-                  # 状態をリセット
+          col1, col2 = st.columns(2)
+          with col1:
+              if st.button("次の質問へ"):
                   st.session_state.current_question = ""
                   st.session_state.current_answer = ""
                   st.session_state.response_time = 0.0
                   st.session_state.feedback_given = False
-                  st.rerun() # 画面をクリア
+                  st.rerun()
+          with col2:
+              if st.button("再回答をリクエスト"):
+                  st.session_state.show_retry_form = True
+          if st.session_state.show_retry_form:
+              with st.form("retry_request_form"):
+                  st.write("再回答時に追加したい要望を選んでください")
+                  options = [
+                      "よりやさしく説明して",
+                      "例を追加して",
+                      "短くまとめて",
+                      "別の表現で"
+                  ]
+                  request_type = st.selectbox("要望", options, key="retry_select")
+                  submitted = st.form_submit_button("再回答を生成")
+                  if submitted:
+                      retry_instruction = request_type
+                      new_prompt = st.session_state.current_question + "\n\n【要望】" + retry_instruction
+                      with st.spinner("モデルが再回答を生成中..."):
+                          answer, response_time = generate_response(pipe, new_prompt)
+                          st.session_state.current_answer = answer
+                          st.session_state.response_time = response_time
+                          st.session_state.feedback_given = False
+                          st.session_state.show_retry_form = False
+                          st.session_state.retry_request = retry_instruction
+                          st.rerun()
+
 
 
 def display_feedback_form():
